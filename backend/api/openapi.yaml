@@ -1,0 +1,202 @@
+openapi: 3.0.3
+info:
+  title: castle-question-hour API
+  description: |
+    Backend for the castle-wide hourly reflection ritual. See ADR 0004 for context.
+    Frontend is generated from this spec via `openapi-typescript` and `openapi-fetch`.
+  version: 0.1.0
+servers:
+  - url: https://castle.example.local:25342
+    description: Default castle box (behind nginx)
+  - url: http://localhost:8080
+    description: Local dev
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness
+      responses:
+        "200":
+          description: ok
+
+  /readyz:
+    get:
+      summary: Readiness
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  bank_size: { type: integer }
+                  version: { type: string }
+
+  /api/v1/vapid-public-key:
+    get:
+      summary: Get the VAPID public key for Web Push subscription
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  public_key: { type: string }
+                required: [public_key]
+
+  /api/v1/castle/{code}/now:
+    get:
+      summary: Current question for this hour
+      parameters:
+        - $ref: "#/components/parameters/CastleCode"
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/castle/{code}/history:
+    get:
+      summary: Past N hour buckets (questions only, no answers)
+      parameters:
+        - $ref: "#/components/parameters/CastleCode"
+        - name: n
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 168, default: 24 }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+
+  /api/v1/castle/{code}/subscribe:
+    post:
+      summary: Register a Web Push subscription
+      parameters:
+        - $ref: "#/components/parameters/CastleCode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Subscription"
+      responses:
+        "200":
+          description: ok
+    delete:
+      summary: Unregister a Web Push subscription
+      parameters:
+        - $ref: "#/components/parameters/CastleCode"
+        - name: endpoint
+          in: query
+          required: true
+          schema: { type: string, format: uri }
+      responses:
+        "200":
+          description: ok
+
+  /api/v1/castle/{code}/summarize:
+    post:
+      summary: Steward triggers theme extraction (and optionally TTS)
+      parameters:
+        - $ref: "#/components/parameters/CastleCode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SummarizeRequest"
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SummarizeResponse"
+
+components:
+  parameters:
+    CastleCode:
+      name: code
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z0-9]([a-z0-9-]{1,30}[a-z0-9])?$"
+  responses:
+    BadRequest:
+      description: bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Question:
+      type: object
+      required: [bucket_id, text, emitted_at]
+      properties:
+        bucket_id: { type: string, description: "RFC3339 hour-truncated UTC" }
+        text: { type: string }
+        emitted_at: { type: string, format: date-time }
+    Subscription:
+      type: object
+      required: [endpoint, p256dh, auth]
+      properties:
+        endpoint: { type: string, format: uri }
+        p256dh: { type: string }
+        auth: { type: string }
+    SummarizeRequest:
+      type: object
+      required: [question, answers]
+      properties:
+        bucket_id: { type: string }
+        question: { type: string }
+        answers:
+          type: array
+          items: { type: string }
+        with_audio: { type: boolean, default: false }
+    Theme:
+      type: object
+      required: [title, summary]
+      properties:
+        title: { type: string }
+        summary: { type: string }
+        samples:
+          type: array
+          items: { type: string }
+    SummarizeResponse:
+      type: object
+      required: [bucket_id, question, answer_count, themes]
+      properties:
+        bucket_id: { type: string }
+        question: { type: string }
+        answer_count: { type: integer }
+        themes:
+          type: array
+          items: { $ref: "#/components/schemas/Theme" }
+        audio_wav:
+          type: string
+          format: byte
+          description: base64-encoded WAV (only if with_audio=true)
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
