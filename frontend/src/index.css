@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  font-feature-settings:
+    "ss01" on,
+    "cv11" on;
+}
+
+.candle-glow {
+  background: radial-gradient(
+    1200px circle at 50% -20%,
+    rgba(233, 216, 166, 0.18),
+    transparent 60%
+  );
+}
