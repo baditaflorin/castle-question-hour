@@ -1,0 +1,49 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active castles",
+      "targets": [{ "expr": "cqh_castles_active", "refId": "A" }],
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "type": "stat",
+      "title": "Signaling peers",
+      "targets": [{ "expr": "cqh_signal_peers_connected", "refId": "A" }],
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests per second",
+      "targets": [
+        { "expr": "sum(rate(cqh_http_requests_total[1m])) by (route)", "refId": "A" }
+      ],
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 6 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Push outcomes per minute",
+      "targets": [
+        { "expr": "sum(rate(cqh_push_sent_total[1m])) by (outcome)", "refId": "A" }
+      ],
+      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 6 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Summary latency (p95)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(cqh_summary_latency_seconds_bucket[5m])) by (le))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 }
+    }
+  ],
+  "schemaVersion": 38,
+  "title": "castle-question-hour",
+  "uid": "cqh-overview",
+  "version": 1
+}

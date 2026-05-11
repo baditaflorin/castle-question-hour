@@ -1,0 +1,17 @@
+services:
+  app:
+    image: castle-question-hour:dev
+    build:
+      context: ../backend
+      args:
+        VERSION: dev
+    ports:
+      - "8080:8080"
+    read_only: false
+    volumes:
+      - ../backend/configs:/etc/cqh:ro
+
+  nginx:
+    ports:
+      - "8443:443"
+      - "8080:80"

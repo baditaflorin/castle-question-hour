@@ -8,6 +8,8 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -30,6 +32,9 @@ import (
 var version = "dev"
 
 func main() {
+	healthcheck := flag.Bool("healthcheck", false, "internal: hit /healthz and exit 0/1; used by Docker HEALTHCHECK")
+	flag.Parse()
+
 	cfg, err := config.Load()
 	if err != nil {
 		// pre-logger error — fall back to stderr
@@ -37,6 +42,10 @@ func main() {
 		os.Exit(1)
 	}
 	cfg.AppVersion = version
+
+	if *healthcheck {
+		os.Exit(runHealthcheck(cfg))
+	}
 
 	log := logging.New(cfg.LogLevel).With(slog.String("version", version))
 	log.Info("starting", "addr", cfg.ServerAddr)
@@ -130,6 +139,27 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	shutdownCtx, cancel2 := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel2()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// runHealthcheck makes one local HTTP GET to /healthz. Distroless has no shell
+// or curl; this lets the Docker HEALTHCHECK call the binary itself.
+func runHealthcheck(cfg *config.Config) int {
+	addr := cfg.ServerAddr
+	if len(addr) > 0 && addr[0] == ':' {
+		addr = "127.0.0.1" + addr
+	}
+	c := &http.Client{Timeout: 2 * time.Second}
+	resp, err := c.Get(fmt.Sprintf("http://%s/healthz", addr))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 200 {
+		return 0
+	}
+	fmt.Fprintln(os.Stderr, "healthcheck: status", resp.StatusCode)
+	return 1
 }
 
 // defaultQuestions is the in-binary fallback bank if QUESTIONS_FILE is missing

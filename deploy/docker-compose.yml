@@ -1,0 +1,115 @@
+name: castle-question-hour
+
+services:
+  app:
+    image: ghcr.io/baditaflorin/castle-question-hour:${APP_TAG:-latest}
+    container_name: cqh-app
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "/app/server", "-healthcheck"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - cqh-internal
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cqh-ollama
+    restart: unless-stopped
+    expose:
+      - "11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - cqh-internal
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  piper:
+    image: lscr.io/linuxserver/piper:latest
+    container_name: cqh-piper
+    restart: unless-stopped
+    expose:
+      - "10200"
+    environment:
+      PIPER_VOICE: en_US-lessac-medium
+    volumes:
+      - piper-voices:/config
+    networks:
+      - cqh-internal
+    profiles:
+      - with-piper-http
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: cqh-nginx
+    restart: unless-stopped
+    ports:
+      - "25342:443"
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - nginx-cache:/var/cache/nginx
+    networks:
+      - cqh-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cqh-prometheus
+    restart: unless-stopped
+    profiles:
+      - observability
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom-data:/prometheus
+    networks:
+      - cqh-internal
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+
+networks:
+  cqh-internal:
+    driver: bridge
+
+volumes:
+  ollama-models:
+  piper-voices:
+  nginx-cache:
+  prom-data:
