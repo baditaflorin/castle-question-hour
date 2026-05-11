@@ -1,6 +1,6 @@
 module github.com/baditaflorin/castle-question-hour/backend
 
-go 1.22
+go 1.24.0
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.3.0
@@ -25,8 +25,8 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	golang.org/x/crypto v0.19.0 // indirect
-	golang.org/x/sys v0.22.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
