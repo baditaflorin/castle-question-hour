@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Question } from "../lib/api";
-import { useAnswerCount } from "../state/castle-store";
+import { useAnswerCount, usePeerCount } from "../state/castle-store";
+import { JoinQR } from "./JoinQR";
 import type { CastleDoc } from "../lib/castle-doc";
 
 type Props = {
@@ -20,8 +21,10 @@ export function HourScreen({ code, cd, onShowSummary, onLeave }: Props) {
 
   const [draft, setDraft] = useState("");
   const [posted, setPosted] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const bucketId = data?.bucket_id ?? "";
   const count = useAnswerCount(cd, bucketId);
+  const peers = usePeerCount(cd);
 
   // refetch right after the top of the hour
   useEffect(() => {
@@ -44,17 +47,28 @@ export function HourScreen({ code, cd, onShowSummary, onLeave }: Props) {
 
   return (
     <div className="mx-auto max-w-xl p-6 mt-10">
-      <header className="flex items-center justify-between text-xs text-bone/50 mb-8">
-        <span>
+      <header className="flex items-center justify-between text-xs text-bone/50 mb-8 gap-2">
+        <span className="flex-shrink-0">
           castle: <span className="text-bone/80">{code}</span>
         </span>
-        <span>
+        <span className="flex-1 text-center" aria-live="polite">
+          {peers > 0 ? `with ${peers} ${peers === 1 ? "other" : "others"} · ` : ""}
           {count} {count === 1 ? "answer" : "answers"} so far
         </span>
-        <button onClick={onLeave} className="underline underline-offset-2 hover:text-bone">
-          leave
-        </button>
+        <span className="flex items-center gap-3 flex-shrink-0">
+          <button
+            onClick={() => setShowQR(true)}
+            className="underline underline-offset-2 hover:text-bone"
+            aria-label="Show join QR code"
+          >
+            invite
+          </button>
+          <button onClick={onLeave} className="underline underline-offset-2 hover:text-bone">
+            leave
+          </button>
+        </span>
       </header>
+      {showQR && <JoinQR code={code} onClose={() => setShowQR(false)} />}
 
       {isError && (
         <div className="rounded bg-ember/20 text-ember p-3 mb-4">

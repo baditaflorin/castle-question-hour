@@ -23,9 +23,16 @@ export const SummaryResponse = z.object({
   question: z.string(),
   answer_count: z.number(),
   themes: z.array(Theme),
+  mode: z.enum(["llm", "heuristic"]).optional(),
   audio_wav: z.string().optional(),
 });
 export type SummaryResponse = z.infer<typeof SummaryResponse>;
+
+export const ServerInfo = z.object({
+  version: z.string(),
+  steward_required: z.boolean(),
+});
+export type ServerInfo = z.infer<typeof ServerInfo>;
 
 const apiBase = readApiBase();
 
@@ -49,13 +56,39 @@ async function getJSON<T>(path: string, schema: z.ZodSchema<T>): Promise<T> {
   return schema.parse(raw);
 }
 
-async function postJSON<T>(path: string, body: unknown, schema: z.ZodSchema<T>): Promise<T> {
+export class APIError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function postJSON<T>(
+  path: string,
+  body: unknown,
+  schema: z.ZodSchema<T>,
+  headers: Record<string, string> = {},
+): Promise<T> {
   const r = await fetch(`${apiBase}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`POST ${path} → ${r.status}`);
+  if (!r.ok) {
+    let code = "http_error";
+    let message = `POST ${path} → ${r.status}`;
+    try {
+      const j = (await r.json()) as { error?: { code?: string; message?: string } };
+      code = j.error?.code ?? code;
+      message = j.error?.message ?? message;
+    } catch {
+      // ignore — fall through with default message
+    }
+    throw new APIError(r.status, code, message);
+  }
   const raw = await r.json();
   return schema.parse(raw);
 }
@@ -84,6 +117,7 @@ export const api = {
     getJSON("/api/v1/vapid-public-key", z.object({ public_key: z.string() })).then(
       (r) => r.public_key,
     ),
+  serverInfo: () => getJSON("/api/v1/server-info", ServerInfo),
   now: (code: string) => getJSON(`/api/v1/castle/${encodeURIComponent(code)}/now`, Question),
   history: (code: string, n = 24) =>
     getJSON(`/api/v1/castle/${encodeURIComponent(code)}/history?n=${n}`, z.array(Question)),
@@ -96,7 +130,14 @@ export const api = {
   summarize: (
     code: string,
     body: { bucket_id?: string; question: string; answers: string[]; with_audio?: boolean },
-  ) => postJSON(`/api/v1/castle/${encodeURIComponent(code)}/summarize`, body, SummaryResponse),
+    opts: { stewardToken?: string } = {},
+  ) =>
+    postJSON(
+      `/api/v1/castle/${encodeURIComponent(code)}/summarize`,
+      body,
+      SummaryResponse,
+      opts.stewardToken ? { "X-Steward-Token": opts.stewardToken } : {},
+    ),
 };
 
 function subscriptionPayload(sub: PushSubscription) {
