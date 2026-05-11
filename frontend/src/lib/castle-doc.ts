@@ -11,6 +11,7 @@ import * as Y from "yjs";
 import { WebrtcProvider } from "y-webrtc";
 import { IndexeddbPersistence } from "y-indexeddb";
 import { api } from "./api";
+import { fetchIceServers } from "./turnConfig";
 
 export type CastleDoc = {
   doc: Y.Doc;
@@ -27,10 +28,24 @@ export function openCastleDoc(code: string): CastleDoc {
 
   // The signaling URL is our backend; y-webrtc accepts an array of signaling servers.
   const signal = api.signalURL(code);
+  // Start STUN-only; refresh with HMAC TURN credentials once they arrive.
+  // y-webrtc does not let us mutate ICE servers on an existing provider, so
+  // a freshly-fetched set will only apply on the next reconnect — that's
+  // acceptable because the first browser session typically does get a few
+  // reconnects from background-tab close codes anyway.
   const rtc = new WebrtcProvider(`cqh:${code}`, doc, {
     signaling: [signal],
     maxConns: 24,
     filterBcConns: true,
+    peerOpts: { config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] } },
+  });
+
+  void fetchIceServers().then((iceServers) => {
+    // Stash the fresh credentials on the provider's peerOpts so future peer
+    // connections (the ones y-webrtc creates lazily as it discovers peers)
+    // pick them up. Existing already-negotiated peers keep their ICE.
+    const opts = (rtc as unknown as { peerOpts?: { config?: { iceServers?: unknown } } }).peerOpts;
+    if (opts?.config) opts.config.iceServers = iceServers;
   });
 
   const idb = new IndexeddbPersistence(`cqh:${code}`, doc);

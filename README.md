@@ -38,6 +38,14 @@ and pipes the summary through **Piper** to produce a WAV the castle speakers can
 Full picture: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](docs/adr/).
 Deploy: [deploy/README.md](deploy/README.md). Runbook: [docs/runbook.md](docs/runbook.md).
 
+### WebRTC infrastructure
+
+The Go backend serves WebSocket **signaling** at `/api/v1/signal/{code}` — it's part of this app, not a third party.
+
+For TURN relay (used when peers can't connect directly — symmetric NAT, corporate firewalls, mobile carrier networks) the browser fetches time-limited HMAC credentials from the [turn-token-server](https://github.com/baditaflorin/turn-token-server) running at `https://turn.0docker.com/credentials` by default. Relay endpoint is [coturn-hetzner](https://github.com/baditaflorin/coturn-hetzner) at `turn:turn.0docker.com:3479`. Override with `VITE_TURN_TOKEN_URL`. Set empty to disable TURN (STUN-only).
+
+Why split signaling from TURN? Signaling is a small, app-aware service (it knows about castle codes, ratelimits, etc.) so it lives in this app's backend. TURN is a commodity relay shared across many apps, so it lives in a separate stack that can be reused.
+
 ## Repo layout
 
 ```
