@@ -39,6 +39,8 @@ type Config struct {
 	HourlyCron    string
 	QuestionsFile string
 
+	StewardToken string // when non-empty, /summarize requires X-Steward-Token to match
+
 	LogLevel       string
 	MetricsEnabled bool
 }
@@ -64,6 +66,7 @@ func Load() (*Config, error) {
 		HourlyEnabled:      envBool("HOURLY_ENABLED", true),
 		HourlyCron:         env("HOURLY_CRON", "0 * * * *"),
 		QuestionsFile:      env("QUESTIONS_FILE", "/etc/cqh/questions.json"),
+		StewardToken:       env("STEWARD_TOKEN", ""),
 		LogLevel:           env("LOG_LEVEL", "info"),
 		MetricsEnabled:     envBool("METRICS_ENABLED", true),
 	}

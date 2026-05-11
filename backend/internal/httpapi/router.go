@@ -64,12 +64,13 @@ func New(d *Deps) http.Handler {
 		r.Use(middleware.Timeout(60 * time.Second))
 		r.Route("/api/v1", func(r chi.Router) {
 			r.Get("/vapid-public-key", vapidPublicKeyHandler(d))
+			r.Get("/server-info", serverInfoHandler(d))
 			r.Route("/castle/{code}", func(r chi.Router) {
 				r.Get("/now", getNow(d))
 				r.Get("/history", getHistory(d))
 				r.Post("/subscribe", postSubscribe(d))
 				r.Delete("/subscribe", deleteSubscribe(d))
-				r.Post("/summarize", postSummarize(d))
+				r.With(stewardGate(d.Cfg.StewardToken)).Post("/summarize", postSummarize(d))
 			})
 		})
 	})

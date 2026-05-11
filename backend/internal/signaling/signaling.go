@@ -1,6 +1,14 @@
-// Package signaling is a thin WebSocket relay used to bootstrap a Yjs
-// WebRTC mesh. The backend never sees Y.Doc contents — only offer/answer/ICE
-// envelopes flowing between peers.
+// Package signaling is a y-webrtc-compatible WebSocket signaling server used
+// to bootstrap a Yjs WebRTC mesh. The protocol is topic-based:
+//
+//	{"type":"subscribe","topics":["cqh:castle-grey", ...]}
+//	{"type":"unsubscribe","topics":[...]}
+//	{"type":"publish","topic":"cqh:castle-grey","data":...}  // echoed to ALL subscribers
+//	{"type":"ping"}                                          // server responds with pong
+//
+// The backend never decodes `data` — it only routes envelopes between peers.
+// Castle code URL bucketing is retained as a sanity boundary, but route
+// matching is by topic name to match the y-webrtc reference server.
 package signaling
 
 import (
@@ -17,13 +25,15 @@ import (
 	"github.com/baditaflorin/castle-question-hour/backend/internal/metrics"
 )
 
-// Hub keeps per-castle peer sets and broadcasts signaling envelopes among them.
+// Hub routes y-webrtc signaling envelopes between peers, indexed by topic.
 type Hub struct {
-	mu       sync.Mutex
-	rooms    map[string]map[*peer]struct{}
-	registry *castle.Registry
-	log      *slog.Logger
-	metrics  *metrics.Registry
+	mu         sync.Mutex
+	topicConns map[string]map[*peer]struct{} // topic → connected peers
+	connTopics map[*peer]map[string]struct{} // reverse: peer → subscribed topics
+	totalPeers int
+	registry   *castle.Registry
+	log        *slog.Logger
+	metrics    *metrics.Registry
 }
 
 type peer struct {
@@ -31,25 +41,28 @@ type peer struct {
 	conn *websocket.Conn
 }
 
-// Envelope is the JSON shape we accept from clients. Type values mirror
-// y-webrtc's signaling protocol: "subscribe", "unsubscribe", "publish", "ping".
+// Envelope is the JSON shape we accept from and emit to clients.
 type Envelope struct {
-	Type   string          `json:"type"`
-	Topics []string        `json:"topics,omitempty"`
-	Topic  string          `json:"topic,omitempty"`
-	Data   json.RawMessage `json:"data,omitempty"`
+	Type    string          `json:"type"`
+	Topics  []string        `json:"topics,omitempty"`
+	Topic   string          `json:"topic,omitempty"`
+	Data    json.RawMessage `json:"data,omitempty"`
+	Clients int             `json:"clients,omitempty"`
 }
 
 func NewHub(reg *castle.Registry, log *slog.Logger, m *metrics.Registry) *Hub {
 	return &Hub{
-		rooms:    make(map[string]map[*peer]struct{}),
-		registry: reg,
-		log:      log,
-		metrics:  m,
+		topicConns: make(map[string]map[*peer]struct{}),
+		connTopics: make(map[*peer]map[string]struct{}),
+		registry:   reg,
+		log:        log,
+		metrics:    m,
 	}
 }
 
-// ServeHTTP upgrades to WebSocket and starts the per-peer read loop.
+// ServeHTTP upgrades to WebSocket and starts the per-peer read loop. The
+// castleCode is validated and registered for visibility, but routing happens
+// by topic, not by castle URL.
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request, castleCode string) {
 	if err := castle.ValidateCode(castleCode); err != nil {
 		http.Error(w, "bad castle code", http.StatusBadRequest)
@@ -60,7 +73,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request, castleCode strin
 		return
 	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		// Origin check is done at nginx via CORS; in dev we let the proxy do it.
+		// Origin check is enforced at nginx via CORS; the hub trusts that hop.
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
@@ -70,10 +83,10 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request, castleCode strin
 	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
 
 	p := &peer{id: r.Header.Get("X-Trace-Id"), conn: conn}
-	h.join(castleCode, p)
+	h.register(p)
 	h.metrics.SignalPeers.Inc()
 	defer func() {
-		h.leave(castleCode, p)
+		h.deregister(p)
 		h.metrics.SignalPeers.Dec()
 	}()
 
@@ -91,61 +104,99 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request, castleCode strin
 			h.log.Debug("ws bad envelope", "err", err)
 			continue
 		}
-		h.handle(ctx, castleCode, p, env, data)
+		h.handle(ctx, p, env)
 	}
 }
 
-func (h *Hub) join(code string, p *peer) {
+func (h *Hub) register(p *peer) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if _, ok := h.rooms[code]; !ok {
-		h.rooms[code] = make(map[*peer]struct{})
-		h.metrics.CastlesActive.Set(float64(len(h.rooms)))
-	}
-	h.rooms[code][p] = struct{}{}
+	h.connTopics[p] = make(map[string]struct{})
+	h.totalPeers++
+	h.metrics.CastlesActive.Set(float64(len(h.topicConns)))
 }
 
-func (h *Hub) leave(code string, p *peer) {
+func (h *Hub) deregister(p *peer) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if room, ok := h.rooms[code]; ok {
-		delete(room, p)
-		if len(room) == 0 {
-			delete(h.rooms, code)
+	for t := range h.connTopics[p] {
+		delete(h.topicConns[t], p)
+		if len(h.topicConns[t]) == 0 {
+			delete(h.topicConns, t)
 		}
 	}
-	h.metrics.CastlesActive.Set(float64(len(h.rooms)))
+	delete(h.connTopics, p)
+	h.totalPeers--
+	h.metrics.CastlesActive.Set(float64(len(h.topicConns)))
 }
 
-// handle relays publish-typed envelopes to every other peer in the same castle.
-// subscribe/unsubscribe/ping are local control messages and don't fan out.
-func (h *Hub) handle(ctx context.Context, code string, from *peer, env Envelope, raw []byte) {
+func (h *Hub) handle(ctx context.Context, from *peer, env Envelope) {
 	switch env.Type {
+	case "subscribe":
+		h.subscribe(from, env.Topics)
+	case "unsubscribe":
+		h.unsubscribe(from, env.Topics)
 	case "publish":
-		h.broadcast(ctx, code, from, raw)
-	case "subscribe", "unsubscribe", "ping":
-		// y-webrtc compatibility: respond to ping with pong; subscribe/unsubscribe are
-		// effectively no-ops at the hub level because every peer in the room sees every
-		// publish for that room.
-		if env.Type == "ping" {
-			_ = from.conn.Write(ctx, websocket.MessageText, []byte(`{"type":"pong"}`))
-		}
+		h.publish(ctx, from, env)
+	case "ping":
+		_ = from.conn.Write(ctx, websocket.MessageText, []byte(`{"type":"pong"}`))
 	}
 }
 
-func (h *Hub) broadcast(ctx context.Context, code string, from *peer, raw []byte) {
+func (h *Hub) subscribe(p *peer, topics []string) {
 	h.mu.Lock()
-	peers := make([]*peer, 0, len(h.rooms[code]))
-	for p := range h.rooms[code] {
-		if p != from {
-			peers = append(peers, p)
+	defer h.mu.Unlock()
+	for _, t := range topics {
+		if t == "" {
+			continue
 		}
+		set, ok := h.topicConns[t]
+		if !ok {
+			set = make(map[*peer]struct{})
+			h.topicConns[t] = set
+		}
+		set[p] = struct{}{}
+		h.connTopics[p][t] = struct{}{}
+	}
+}
+
+func (h *Hub) unsubscribe(p *peer, topics []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, t := range topics {
+		if set, ok := h.topicConns[t]; ok {
+			delete(set, p)
+			if len(set) == 0 {
+				delete(h.topicConns, t)
+			}
+		}
+		delete(h.connTopics[p], t)
+	}
+}
+
+// publish fans out env to every peer subscribed to env.Topic (the y-webrtc
+// reference server echoes back to the sender too, including subscriber count
+// so peers can use the count to decide when to initiate a peer connection).
+func (h *Hub) publish(ctx context.Context, _ *peer, env Envelope) {
+	if env.Topic == "" {
+		return
+	}
+	h.mu.Lock()
+	subs := h.topicConns[env.Topic]
+	receivers := make([]*peer, 0, len(subs))
+	for r := range subs {
+		receivers = append(receivers, r)
 	}
 	h.mu.Unlock()
 
-	for _, p := range peers {
-		// Don't let one slow peer hold up the loop; write timeout handled by ServeHTTP ctx.
-		if err := p.conn.Write(ctx, websocket.MessageText, raw); err != nil {
+	env.Clients = len(receivers)
+	raw, err := json.Marshal(env)
+	if err != nil {
+		h.log.Warn("publish marshal failed", "err", err)
+		return
+	}
+	for _, r := range receivers {
+		if err := r.conn.Write(ctx, websocket.MessageText, raw); err != nil {
 			h.log.Debug("ws write failed", "err", err)
 		}
 	}

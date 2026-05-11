@@ -27,6 +27,9 @@ type Theme struct {
 type Result struct {
 	Themes      []Theme `json:"themes"`
 	AnswerCount int     `json:"answer_count"`
+	// Mode is "llm" when the themes came from Ollama, "heuristic" when the
+	// LLM was unreachable and we fell back to word-cluster summarization.
+	Mode string `json:"mode"`
 }
 
 // Client talks HTTP to an Ollama server.
@@ -57,7 +60,7 @@ func (c *Client) Summarize(ctx context.Context, question string, answers []strin
 		return nil, errors.New("OLLAMA_URL not configured")
 	}
 	if len(answers) == 0 {
-		return &Result{Themes: nil, AnswerCount: 0}, nil
+		return &Result{Themes: nil, AnswerCount: 0, Mode: "llm"}, nil
 	}
 
 	body := map[string]any{
@@ -106,6 +109,7 @@ func (c *Client) Summarize(ctx context.Context, question string, answers []strin
 		return nil, fmt.Errorf("decode themes payload: %w", err)
 	}
 	inner.AnswerCount = len(answers)
+	inner.Mode = "llm"
 	clamp(&inner)
 	return &inner, nil
 }

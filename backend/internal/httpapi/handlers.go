@@ -11,6 +11,7 @@ import (
 
 	"github.com/baditaflorin/castle-question-hour/backend/internal/castle"
 	"github.com/baditaflorin/castle-question-hour/backend/internal/schedule"
+	"github.com/baditaflorin/castle-question-hour/backend/internal/summarize"
 )
 
 type apiError struct {
@@ -51,6 +52,17 @@ func readyz(d *Deps) http.HandlerFunc {
 func vapidPublicKeyHandler(d *Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"public_key": d.Cfg.VAPIDPublicKey})
+	}
+}
+
+// serverInfoHandler tells the frontend what this castle box can do, so the UI
+// can show or hide controls (steward gate prompt, no-LLM badge) accurately.
+func serverInfoHandler(d *Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"version":          d.Cfg.AppVersion,
+			"steward_required": d.Cfg.StewardToken != "",
+		})
 	}
 }
 
@@ -161,6 +173,7 @@ type summarizeResp struct {
 	Question    string `json:"question"`
 	AnswerCount int    `json:"answer_count"`
 	Themes      any    `json:"themes"`
+	Mode        string `json:"mode"` // "llm" or "heuristic"
 	AudioWAV    []byte `json:"audio_wav,omitempty"`
 }
 
@@ -184,15 +197,17 @@ func postSummarize(d *Deps) http.HandlerFunc {
 
 		result, err := d.Summarize.Summarize(r.Context(), body.Question, body.Answers)
 		if err != nil {
-			d.Log.Warn("summarize failed", "err", err, "castle", code)
-			writeErr(w, http.StatusBadGateway, "llm_unavailable", err.Error())
-			return
+			// LLM unreachable / slow → fall back to the deterministic heuristic
+			// so the meal-time ritual still happens, just at lower fidelity.
+			d.Log.Info("summarize: llm failed, using heuristic", "err", err, "castle", code)
+			result = summarize.Heuristic(body.Answers, 7)
 		}
 		resp := summarizeResp{
 			BucketID:    body.BucketID,
 			Question:    body.Question,
 			AnswerCount: result.AnswerCount,
 			Themes:      result.Themes,
+			Mode:        result.Mode,
 		}
 		if body.WithAudio && d.TTS != nil && len(result.Themes) > 0 {
 			text := composeSpoken(body.Question, result.Themes)
