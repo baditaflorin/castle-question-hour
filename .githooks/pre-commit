@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Pre-commit hook: format, lint, typecheck, and secret-scan staged changes.
+# Idempotent — re-runnable manually via `make hooks-pre-commit`.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+stage="$(git diff --cached --name-only --diff-filter=ACMR || true)"
+
+bold() { printf '\033[1m%s\033[0m\n' "$*"; }
+note() { printf '  %s\n' "$*"; }
+warn() { printf '\033[33m  %s\033[0m\n' "$*"; }
+
+if grep -q '^backend/' <<<"$stage"; then
+  bold "→ backend: gofmt + go vet + golangci-lint"
+  (
+    cd backend
+    if ! gofmt -l . | tee /tmp/cqh-gofmt | grep -q .; then
+      note "gofmt OK"
+    else
+      warn "gofmt needs to rewrite the files above"
+      warn "run: cd backend && gofmt -w ."
+      exit 1
+    fi
+    go vet ./...
+    if command -v golangci-lint >/dev/null; then
+      golangci-lint run
+    else
+      warn "golangci-lint not installed — skipping"
+    fi
+  )
+fi
+
+if grep -q '^frontend/' <<<"$stage"; then
+  bold "→ frontend: prettier --check, eslint, tsc"
+  (
+    cd frontend
+    if [ ! -d node_modules ]; then
+      warn "frontend/node_modules missing — run: cd frontend && npm ci"
+      exit 1
+    fi
+    npx prettier --check "src/**/*.{ts,tsx,css,html}" || {
+      warn "prettier wants to format some files; run: cd frontend && npm run fmt"
+      exit 1
+    }
+    npx eslint . --ext .ts,.tsx
+    npx tsc --noEmit
+  )
+fi
+
+bold "→ gitleaks (staged)"
+if command -v gitleaks >/dev/null; then
+  gitleaks protect --staged --redact --no-banner
+else
+  warn "gitleaks not installed — skipping (install: brew install gitleaks)"
+fi

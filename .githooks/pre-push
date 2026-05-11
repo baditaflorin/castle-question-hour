@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Pre-push: run tests, verify the Pages build, optionally run smoke.
+# Skip the smoke leg with SKIP_SMOKE=1 (default off — set to 1 if you don't have
+# Docker available locally; CI-style verification happens via `make smoke`).
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+bold() { printf '\033[1m%s\033[0m\n' "$*"; }
+
+bold "→ make test"
+make test
+
+bold "→ make build (verifying docs/ is Pages-ready)"
+make build
+[[ -f docs/index.html ]] || { echo "docs/index.html missing after build"; exit 1; }
+grep -q '<div id="root">' docs/index.html || { echo "docs/index.html is malformed"; exit 1; }
+
+if [[ "${SKIP_SMOKE:-0}" != "1" ]]; then
+  if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+    bold "→ make smoke"
+    make smoke
+  else
+    echo "  (docker not available — skipping smoke; set SKIP_SMOKE=1 to silence)"
+  fi
+fi

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Validates commit messages against the Conventional Commits format.
+# Allowed types: feat, fix, docs, chore, refactor, test, ops, data, perf, build, ci, style.
+
+set -euo pipefail
+
+msg_file="${1:-}"
+[[ -z "$msg_file" ]] && { echo "commit-msg: no message file given"; exit 1; }
+first_line="$(head -n1 "$msg_file" | sed -E 's/[[:space:]]+$//')"
+
+# Allow merge commits and reverts.
+case "$first_line" in
+  Merge*|Revert*) exit 0 ;;
+esac
+
+re='^(feat|fix|docs|chore|refactor|test|ops|data|perf|build|ci|style)(\([a-z0-9._-]+\))?!?:[[:space:]].{1,}$'
+if [[ ! "$first_line" =~ $re ]]; then
+  cat <<EOF
+✗ commit message does not match Conventional Commits format.
+
+  expected: <type>(<scope>)?: <subject>
+  example:  feat(backend): hourly question scheduler
+
+  allowed types: feat fix docs chore refactor test ops data perf build ci style
+
+  got: $first_line
+EOF
+  exit 1
+fi

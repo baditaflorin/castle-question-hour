@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Re-tidy and reinstall when go.mod/go.sum or package.json changed.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+changed="$(git diff --name-only HEAD@{1} HEAD 2>/dev/null || true)"
+
+if grep -qE '^backend/(go\.mod|go\.sum)$' <<<"$changed"; then
+  echo "→ backend deps changed; running go mod tidy"
+  (cd backend && go mod tidy)
+fi
+if grep -q '^frontend/package(-lock)?\.json$' <<<"$changed"; then
+  echo "→ frontend deps changed; running npm ci"
+  (cd frontend && npm ci)
+fi

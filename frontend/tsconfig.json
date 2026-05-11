@@ -17,5 +17,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "test"]
+  "include": ["src", "test/api.test.ts"],
+  "exclude": ["test/e2e", "node_modules", "../docs"]
 }
