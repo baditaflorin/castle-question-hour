@@ -13,7 +13,7 @@ case "$first_line" in
   Merge*|Revert*) exit 0 ;;
 esac
 
-re='^(feat|fix|docs|chore|refactor|test|ops|data|perf|build|ci|style)(\([a-z0-9._-]+\))?!?:[[:space:]].{1,}$'
+re='^(feat|fix|docs|chore|refactor|test|ops|data|perf|build|ci|style)(\([a-z0-9._,/ -]+\))?!?:[[:space:]].{1,}$'
 if [[ ! "$first_line" =~ $re ]]; then
   cat <<EOF
 ✗ commit message does not match Conventional Commits format.

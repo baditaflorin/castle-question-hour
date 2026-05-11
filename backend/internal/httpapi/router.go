@@ -40,8 +40,6 @@ func New(d *Deps) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(traceIDMiddleware)
-	r.Use(loggerMiddleware(d.Log))
-	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.Cfg.PagesOrigin, "http://localhost:5173", "http://localhost:4173"},
 		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
@@ -50,25 +48,35 @@ func New(d *Deps) http.Handler {
 		MaxAge:           300,
 	}))
 
-	// liveness / readiness / metrics
+	// liveness / readiness / metrics — no timeout middleware so probes are
+	// always responsive even when handlers are saturated.
 	r.Get("/healthz", healthz)
 	r.Get("/readyz", readyz(d))
 	if d.Cfg.MetricsEnabled {
 		r.Method(http.MethodGet, "/metrics", d.Metrics.Handler())
 	}
 
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/vapid-public-key", vapidPublicKeyHandler(d))
-
-		r.Route("/castle/{code}", func(r chi.Router) {
-			r.Get("/now", getNow(d))
-			r.Get("/history", getHistory(d))
-			r.Post("/subscribe", postSubscribe(d))
-			r.Delete("/subscribe", deleteSubscribe(d))
-			r.Post("/summarize", postSummarize(d))
+	// REST surface — uses chi's per-request timeout AND the custom status-logger.
+	// Both wrap the ResponseWriter; we keep them off the /signal route so the
+	// http.Hijacker interface the WebSocket upgrade needs stays reachable.
+	r.Group(func(r chi.Router) {
+		r.Use(loggerMiddleware(d.Log))
+		r.Use(middleware.Timeout(60 * time.Second))
+		r.Route("/api/v1", func(r chi.Router) {
+			r.Get("/vapid-public-key", vapidPublicKeyHandler(d))
+			r.Route("/castle/{code}", func(r chi.Router) {
+				r.Get("/now", getNow(d))
+				r.Get("/history", getHistory(d))
+				r.Post("/subscribe", postSubscribe(d))
+				r.Delete("/subscribe", deleteSubscribe(d))
+				r.Post("/summarize", postSummarize(d))
+			})
 		})
-		r.Get("/signal/{code}", signalWS(d))
 	})
+
+	// WebSocket signaling — bypasses Timeout AND the status-recorder logger.
+	r.Get("/api/v1/signal/{code}", signalWS(d))
+
 	return r
 }
 

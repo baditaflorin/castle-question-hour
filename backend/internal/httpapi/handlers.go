@@ -40,9 +40,9 @@ func readyz(d *Deps) http.HandlerFunc {
 		// Cheap version: report ready if we have a bank loaded.
 		// (Probing Ollama/Piper here would couple readiness to peers being up.)
 		out := map[string]any{
-			"status":     "ok",
-			"bank_size":  d.Bank.Size(),
-			"version":    d.Cfg.AppVersion,
+			"status":    "ok",
+			"bank_size": d.Bank.Size(),
+			"version":   d.Cfg.AppVersion,
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
@@ -150,10 +150,10 @@ func deleteSubscribe(d *Deps) http.HandlerFunc {
 }
 
 type summarizeReq struct {
-	BucketID string   `json:"bucket_id"`
-	Question string   `json:"question"`
-	Answers  []string `json:"answers"`
-	WithAudio bool    `json:"with_audio"`
+	BucketID  string   `json:"bucket_id"`
+	Question  string   `json:"question"`
+	Answers   []string `json:"answers"`
+	WithAudio bool     `json:"with_audio"`
 }
 
 type summarizeResp struct {

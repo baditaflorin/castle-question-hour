@@ -16,8 +16,11 @@ FRONTEND_PORT="${FRONTEND_PORT:-14173}"
 
 cleanup() {
   rc=$?
-  [[ -n "${backend_pid:-}" ]] && kill "$backend_pid" 2>/dev/null || true
-  [[ -n "${frontend_pid:-}" ]] && kill "$frontend_pid" 2>/dev/null || true
+  # Kill anything still bound to either port — `( ... ) &` subshells lose track
+  # of grandchildren, so PID-based cleanup alone is not enough.
+  lsof -ti:"$BACKEND_PORT" 2>/dev/null | xargs -I{} kill -9 {} 2>/dev/null || true
+  lsof -ti:"$FRONTEND_PORT" 2>/dev/null | xargs -I{} kill -9 {} 2>/dev/null || true
+  [[ -n "${serve_dir:-}" ]] && rm -rf "$serve_dir" 2>/dev/null || true
   exit $rc
 }
 trap cleanup EXIT INT TERM
@@ -30,6 +33,7 @@ SERVER_ADDR=":$BACKEND_PORT" \
   QUESTIONS_FILE="$repo_root/backend/configs/questions.json" \
   HOURLY_ENABLED=false \
   VAPID_PUBLIC_KEY="" VAPID_PRIVATE_KEY="" \
+  PAGES_ORIGIN="http://127.0.0.1:$FRONTEND_PORT" \
   backend/bin/server &
 backend_pid=$!
 
@@ -54,20 +58,26 @@ out="$(curl -fs "http://127.0.0.1:$BACKEND_PORT/api/v1/castle/smoke-castle/now")
 echo "$out" | grep -q '"bucket_id"' && note "now → bucket present"
 echo "$out" | grep -q '"text"' && note "now → text present"
 
-bold "→ serve docs/ on :$FRONTEND_PORT"
-(cd docs && python3 -m http.server "$FRONTEND_PORT" >/dev/null 2>&1) &
+bold "→ mirror docs/ under base path /castle-question-hour/ and serve on :$FRONTEND_PORT"
+# Vite builds with base /castle-question-hour/ so the generated HTML expects
+# its assets at that path. Serve docs/ at the right subdirectory so the e2e
+# loads the bundle exactly the way GitHub Pages will.
+serve_dir="$(mktemp -d)"
+mkdir -p "$serve_dir/castle-question-hour"
+cp -a docs/. "$serve_dir/castle-question-hour/"
+(cd "$serve_dir" && python3 -m http.server "$FRONTEND_PORT" >/dev/null 2>&1) &
 frontend_pid=$!
 sleep 0.5
 
 bold "→ frontend index.html reachable"
-curl -fs "http://127.0.0.1:$FRONTEND_PORT/" | grep -q 'castle-question-hour' && note "index OK"
+curl -fs "http://127.0.0.1:$FRONTEND_PORT/castle-question-hour/" | grep -q 'castle-question-hour' && note "index OK"
 
 if [[ "${SKIP_E2E:-0}" != "1" ]]; then
   if (cd frontend && [ -d node_modules ]); then
     bold "→ Playwright e2e (headless)"
     (
       cd frontend
-      BASE_URL="http://127.0.0.1:$FRONTEND_PORT" \
+      APP_URL="http://127.0.0.1:$FRONTEND_PORT/castle-question-hour/" \
         API_BASE="http://127.0.0.1:$BACKEND_PORT" \
         npx playwright test --reporter=line || {
           echo "playwright failed"

@@ -11,14 +11,14 @@ import (
 )
 
 type Registry struct {
-	HTTPRequests        *prometheus.CounterVec
-	HTTPDuration        *prometheus.HistogramVec
-	CastlesActive       prometheus.Gauge
-	SignalPeers         prometheus.Gauge
-	PushSent            *prometheus.CounterVec
-	SummaryLatency      prometheus.Histogram
-	QuestionsEmitted    prometheus.Counter
-	TTSSubprocessFails  prometheus.Counter
+	HTTPRequests       *prometheus.CounterVec
+	HTTPDuration       *prometheus.HistogramVec
+	CastlesActive      prometheus.Gauge
+	SignalPeers        prometheus.Gauge
+	PushSent           *prometheus.CounterVec
+	SummaryLatency     prometheus.Histogram
+	QuestionsEmitted   prometheus.Counter
+	TTSSubprocessFails prometheus.Counter
 
 	reg *prometheus.Registry
 }

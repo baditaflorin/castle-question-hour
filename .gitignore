@@ -19,6 +19,8 @@ node_modules/
 .vite/
 .parcel-cache/
 frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
 *.tsbuildinfo
 
 # Python

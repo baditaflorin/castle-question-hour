@@ -58,7 +58,6 @@ func (b *Bank) NextFor(castleCode string) string {
 	defer b.mu.Unlock()
 	idx, ok := b.cursor[castleCode]
 	if !ok || idx >= len(b.items) {
-		idx = 0
 		// shuffle a per-castle view by rotating with a random offset
 		offset := b.rng.IntN(len(b.items))
 		b.cursor[castleCode] = offset

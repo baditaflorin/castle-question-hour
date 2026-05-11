@@ -34,10 +34,10 @@ type peer struct {
 // Envelope is the JSON shape we accept from clients. Type values mirror
 // y-webrtc's signaling protocol: "subscribe", "unsubscribe", "publish", "ping".
 type Envelope struct {
-	Type    string          `json:"type"`
-	Topics  []string        `json:"topics,omitempty"`
-	Topic   string          `json:"topic,omitempty"`
-	Data    json.RawMessage `json:"data,omitempty"`
+	Type   string          `json:"type"`
+	Topics []string        `json:"topics,omitempty"`
+	Topic  string          `json:"topic,omitempty"`
+	Data   json.RawMessage `json:"data,omitempty"`
 }
 
 func NewHub(reg *castle.Registry, log *slog.Logger, m *metrics.Registry) *Hub {
@@ -67,7 +67,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request, castleCode strin
 		h.log.Warn("ws accept failed", "err", err)
 		return
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
 
 	p := &peer{id: r.Header.Get("X-Trace-Id"), conn: conn}
 	h.join(castleCode, p)

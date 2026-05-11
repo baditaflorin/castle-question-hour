@@ -22,8 +22,8 @@ var (
 
 // Question is the prompt active for a given hour bucket.
 type Question struct {
-	BucketID string    `json:"bucket_id"` // RFC3339 truncated to the hour
-	Text     string    `json:"text"`
+	BucketID  string    `json:"bucket_id"` // RFC3339 truncated to the hour
+	Text      string    `json:"text"`
 	EmittedAt time.Time `json:"emitted_at"`
 }
 

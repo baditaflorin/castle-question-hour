@@ -37,7 +37,7 @@ func New(publicKey, privateKey, subject string, log *slog.Logger, m *metrics.Reg
 
 // Payload is the JSON delivered to the service worker.
 type Payload struct {
-	Kind     string `json:"kind"`     // "question" | "summary-ready"
+	Kind     string `json:"kind"` // "question" | "summary-ready"
 	BucketID string `json:"bucket_id,omitempty"`
 	Question string `json:"question,omitempty"`
 	Castle   string `json:"castle"`

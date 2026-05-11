@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 const API_BASE = process.env.API_BASE || "http://127.0.0.1:18080";
+const APP_URL = process.env.APP_URL || "http://127.0.0.1:14173/castle-question-hour/";
 
 test("a phone joins a castle and sees the hour's question", async ({ page }) => {
   // Route the frontend at the local backend via the #api hash.
-  await page.goto(`/#api=${encodeURIComponent(API_BASE)}`);
+  // Use a full URL so we don't depend on baseURL relative-path resolution.
+  await page.goto(`${APP_URL}#api=${encodeURIComponent(API_BASE)}`);
 
   // join screen
   await expect(page.getByRole("heading", { name: /castle of quiet questions/i })).toBeVisible();
