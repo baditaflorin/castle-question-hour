@@ -19,6 +19,7 @@ node_modules/
 .vite/
 .parcel-cache/
 frontend/dist/
+*.tsbuildinfo
 
 # Python
 __pycache__/
