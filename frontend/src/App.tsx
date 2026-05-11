@@ -49,9 +49,7 @@ export function App() {
       )}
       <footer className="mx-auto max-w-xl p-6 mt-8 flex items-center justify-between text-xs text-bone/40 border-t border-slate/40">
         <PushControls code={code} />
-        <span>
-          v{import.meta.env.VITE_APP_VERSION ?? "dev"}
-        </span>
+        <span>v{import.meta.env.VITE_APP_VERSION ?? "dev"}</span>
       </footer>
     </Shell>
   );

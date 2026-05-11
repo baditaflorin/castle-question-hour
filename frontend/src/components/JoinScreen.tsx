@@ -40,7 +40,9 @@ export function JoinScreen({ onJoin }: Props) {
         onClick={() => onJoin(code)}
         className={clsx(
           "mt-6 w-full rounded-md px-4 py-2 font-medium transition-colors",
-          valid ? "bg-candle text-night hover:brightness-95" : "bg-slate/40 text-bone/40 cursor-not-allowed",
+          valid
+            ? "bg-candle text-night hover:brightness-95"
+            : "bg-slate/40 text-bone/40 cursor-not-allowed",
         )}
       >
         Enter the castle

@@ -36,20 +36,24 @@ export function HourScreen({ code, cd, onShowSummary, onLeave }: Props) {
 
   const placeholder = useMemo(
     () =>
-      [
-        "Whatever comes up first…",
-        "Anonymous. One paragraph is fine.",
-        "Whisper, don't perform.",
-      ][bucketId.length % 3],
+      ["Whatever comes up first…", "Anonymous. One paragraph is fine.", "Whisper, don't perform."][
+        bucketId.length % 3
+      ],
     [bucketId],
   );
 
   return (
     <div className="mx-auto max-w-xl p-6 mt-10">
       <header className="flex items-center justify-between text-xs text-bone/50 mb-8">
-        <span>castle: <span className="text-bone/80">{code}</span></span>
-        <span>{count} {count === 1 ? "answer" : "answers"} so far</span>
-        <button onClick={onLeave} className="underline underline-offset-2 hover:text-bone">leave</button>
+        <span>
+          castle: <span className="text-bone/80">{code}</span>
+        </span>
+        <span>
+          {count} {count === 1 ? "answer" : "answers"} so far
+        </span>
+        <button onClick={onLeave} className="underline underline-offset-2 hover:text-bone">
+          leave
+        </button>
       </header>
 
       {isError && (
@@ -104,9 +108,7 @@ export function HourScreen({ code, cd, onShowSummary, onLeave }: Props) {
       )}
 
       <div className="mt-12 border-t border-slate/40 pt-6 flex items-center justify-between">
-        <span className="text-xs text-bone/40">
-          Next prompt at the top of the hour.
-        </span>
+        <span className="text-xs text-bone/40">Next prompt at the top of the hour.</span>
         {data && (
           <button
             onClick={() => onShowSummary(data)}
@@ -119,4 +121,3 @@ export function HourScreen({ code, cd, onShowSummary, onLeave }: Props) {
     </div>
   );
 }
-

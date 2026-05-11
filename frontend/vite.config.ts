@@ -8,7 +8,9 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "../docs",
-    emptyOutDir: true,
+    // IMPORTANT: docs/ also holds markdown (ADRs, runbook, etc.) — never empty it.
+    // The Makefile build target removes only the known build artefacts before invoking us.
+    emptyOutDir: false,
     sourcemap: false,
     target: "es2022",
     rollupOptions: {
@@ -34,5 +36,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    include: ["test/**/*.test.ts"],
+    exclude: ["test/e2e/**", "node_modules", "../docs"],
   },
 });

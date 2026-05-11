@@ -81,7 +81,9 @@ export const api = {
     return httpBase.replace(/^http/, "ws") + `/api/v1/signal/${encodeURIComponent(code)}`;
   },
   vapidKey: () =>
-    getJSON("/api/v1/vapid-public-key", z.object({ public_key: z.string() })).then((r) => r.public_key),
+    getJSON("/api/v1/vapid-public-key", z.object({ public_key: z.string() })).then(
+      (r) => r.public_key,
+    ),
   now: (code: string) => getJSON(`/api/v1/castle/${encodeURIComponent(code)}/now`, Question),
   history: (code: string, n = 24) =>
     getJSON(`/api/v1/castle/${encodeURIComponent(code)}/history?n=${n}`, z.array(Question)),

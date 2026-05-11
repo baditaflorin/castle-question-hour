@@ -49,6 +49,10 @@ build: build-backend build-frontend ## Build everything
 
 .PHONY: build-frontend
 build-frontend: ## Build frontend into ./docs (Pages-ready)
+	# docs/ is shared with markdown notes (ADRs, runbook, etc.). Clean only the
+	# generated build artefacts before rebuild — never wipe the whole directory.
+	rm -rf $(BUILD_DIR)/assets $(BUILD_DIR)/index.html $(BUILD_DIR)/404.html \
+	       $(BUILD_DIR)/sw.js $(BUILD_DIR)/manifest.webmanifest $(BUILD_DIR)/favicon.svg
 	cd $(FRONTEND_DIR) && npm ci && VITE_APP_VERSION=$(VERSION) BASE_PATH=$(PAGES_BASE) npm run build
 	@test -f $(BUILD_DIR)/index.html || (echo "ERROR: build did not produce $(BUILD_DIR)/index.html" && exit 1)
 	@cp $(BUILD_DIR)/index.html $(BUILD_DIR)/404.html

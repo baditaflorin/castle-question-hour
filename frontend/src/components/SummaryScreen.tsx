@@ -72,15 +72,14 @@ export function SummaryScreen({ code, cd, question, onBack }: Props) {
       </div>
 
       {mut.isError && (
-        <div className="rounded bg-ember/20 text-ember p-3 mb-4">
-          {mut.error.message}
-        </div>
+        <div className="rounded bg-ember/20 text-ember p-3 mb-4">{mut.error.message}</div>
       )}
 
       {mut.data && (
         <>
           <p className="text-xs text-bone/40 mb-2">
-            {mut.data.answer_count} {mut.data.answer_count === 1 ? "voice" : "voices"} — {mut.data.themes.length} threads
+            {mut.data.answer_count} {mut.data.answer_count === 1 ? "voice" : "voices"} —{" "}
+            {mut.data.themes.length} threads
           </p>
           <ol className="space-y-3">
             {mut.data.themes.map((t, i) => (
