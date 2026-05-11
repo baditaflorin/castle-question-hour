@@ -15,8 +15,17 @@ export default defineConfig({
     target: "es2022",
     rollupOptions: {
       output: {
-        manualChunks: {
-          yjs: ["yjs", "y-webrtc", "y-indexeddb"],
+        // Function form — Vite 8 / rolldown requires this shape.
+        manualChunks(id: string): string | undefined {
+          if (
+            id.includes("node_modules/yjs/") ||
+            id.includes("node_modules/y-webrtc/") ||
+            id.includes("node_modules/y-indexeddb/") ||
+            id.includes("node_modules/lib0/")
+          ) {
+            return "yjs";
+          }
+          return undefined;
         },
       },
     },
