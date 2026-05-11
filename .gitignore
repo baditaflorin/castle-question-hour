@@ -1,0 +1,61 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test/coverage
+coverage/
+*.out
+*.test
+*.coverprofile
+
+# Go
+vendor/
+
+# Node
+node_modules/
+.vite/
+.parcel-cache/
+frontend/dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Logs
+*.log
+*.pid
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# Build temp
+tmp/
+
+# Local-only voices / models (fetched by setup scripts; too large to commit)
+voices/
+models/
+
+# IMPORTANT: docs/ is the GitHub Pages publish dir per ADR 0010 — it IS committed.
+# docs/data is for runtime data dumps only and stays untracked.
+docs/data/
